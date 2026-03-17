@@ -3,7 +3,7 @@
 <p align="center">
   <a href="https://github.com/walterwhite-69/MangaVault/stargazers"><img src="https://img.shields.io/github/stars/walterwhite-69/MangaVault?style=for-the-badge&color=6c63ff" alt="Stars"></a>
   <a href="https://github.com/walterwhite-69/MangaVault/network/members"><img src="https://img.shields.io/github/forks/walterwhite-69/MangaVault?style=for-the-badge&color=a78bfa" alt="Forks"></a>
-  <a href="https://github.com/walterwhite-69/MangaVault/blob/main/LICENSE"><img src="https://img.shields.io/github/license/walterwhite-69/MangaVault?style=for-the-badge&color=6c63ff" alt="License"></a>
+  <a href="https://github.com/walterwhite-69/MangaVault/blob/main/LICENSE"><img src="https://img.shields.io/github/license/walterwhite-69/MangaVault?style=for-the-badge&color=6c63ff" alt="LICENSE"></a>
 </p>
 
 ---

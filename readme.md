@@ -81,4 +81,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-<p align="center">Made with ❤️ for the Manga Community</p>
+<p align="center">Made by walter for the Manga Community</p>

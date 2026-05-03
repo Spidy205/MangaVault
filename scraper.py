@@ -1,4 +1,4 @@
-from curl_cffi import requests
+import httpx
 from bs4 import BeautifulSoup
 import json
 import re
@@ -7,29 +7,43 @@ from urllib.parse import urlencode
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.5",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
     "Referer": "https://comix.to/",
+    "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+    "sec-fetch-dest": "document",
+    "sec-fetch-mode": "navigate",
+    "sec-fetch-site": "same-origin",
+    "upgrade-insecure-requests": "1",
+}
+
+JSON_HEADERS = {
+    **HEADERS,
+    "Accept": "application/json, text/plain, */*",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
 }
 
 BASE_URL = "https://comix.to"
 
 def fetch_page(path="/home", return_resp=False):
-    resp = requests.get(
+    resp = httpx.get(
         f"{BASE_URL}{path}",
         headers=HEADERS,
-        impersonate="chrome124",
         timeout=30,
+        follow_redirects=True,
     )
     return resp if return_resp else resp.text
 
 def parse_item(item_el):
     data = {}
-
     rank_div = item_el.find("div", class_="num")
     if rank_div:
         data["rank"] = int(rank_div.get_text(strip=True))
-
     poster_link = item_el.find("a", class_="poster")
     if not poster_link:
         poster_link = item_el.find("a", href=lambda h: h and "/title/" in h)
@@ -38,19 +52,16 @@ def parse_item(item_el):
         data["url"] = BASE_URL + href if href.startswith("/") else href
         slug = href.split("/title/")[-1] if "/title/" in href else ""
         data["id"] = slug.split("-")[0] if slug else ""
-
     img = item_el.find("img")
     if img:
         data["cover"] = img.get("src", "")
         data["title"] = html_module.unescape(img.get("alt", ""))
-
     title_link = item_el.find("a", class_="title")
     if title_link:
         data["title"] = html_module.unescape(title_link.get_text(strip=True))
     title_div = item_el.find("div", class_="title")
     if title_div and "title" not in data:
         data["title"] = html_module.unescape(title_div.get_text(strip=True))
-
     metadata_div = item_el.find("div", class_="metadata")
     if metadata_div:
         spans = metadata_div.find_all("span")
@@ -58,11 +69,9 @@ def parse_item(item_el):
             data["latest_chapter"] = spans[0].get_text(strip=True)
         if len(spans) >= 2:
             data["updated_at"] = spans[1].get_text(strip=True)
-
     type_span = item_el.find("span", class_="news")
     if type_span:
         data["type"] = type_span.get_text(strip=True)
-
     return data
 
 def parse_main_section(section_el):
@@ -113,7 +122,6 @@ def parse_comments(section_el):
 def parse_home(html_text):
     soup = BeautifulSoup(html_text, "html.parser")
     result = {}
-
     main_aside = soup.find("aside", class_="main")
     if main_aside:
         for sec in main_aside.find_all("section"):
@@ -124,7 +132,6 @@ def parse_home(html_text):
                 items = parse_main_section(sec)
                 if items:
                     result[key] = {"title": section_name, "items": items}
-
     sidebar = soup.find("aside", class_="sidebar")
     if sidebar:
         added_box = sidebar.find("section", class_="added-box")
@@ -137,13 +144,11 @@ def parse_home(html_text):
             key = tab_names[0].lower().replace(" ", "_") if tab_names else "recently_added"
             if items:
                 result[key] = {"title": tab_names[0] if tab_names else "Recently Added", "items": items}
-
         comments_box = sidebar.find("section", class_="comments-box")
         if comments_box:
             comments = parse_comments(comments_box)
             if comments:
                 result["latest_comments"] = {"title": "Latest Comments", "items": comments}
-
     return result
 
 def find_json_object(html, key):
@@ -152,11 +157,8 @@ def find_json_object(html, key):
         if match:
             raw_chunk = match.group(1)
             is_obj = raw_chunk.startswith('{') or raw_chunk.startswith('\\{')
-            is_arr = raw_chunk.startswith('[') or raw_chunk.startswith('\\[')
-            
             start_char = '{' if is_obj else '['
             end_char = '}' if is_obj else ']'
-            
             count = 0
             json_str = ""
             for char in raw_chunk:
@@ -164,11 +166,9 @@ def find_json_object(html, key):
                     count += 1
                 elif char == end_char:
                     count -= 1
-                
                 json_str += char
                 if count == 0:
                     break
-            
             if json_str:
                 try:
                     if '\\"' in json_str or '\\\\' in json_str:
@@ -188,7 +188,7 @@ def fetch_manga_details(id_or_slug):
 
 def fetch_chapters(hash_id, page=1, limit=20, order="desc"):
     api_url = f"{BASE_URL}/api/v2/manga/{hash_id}/chapters?limit={limit}&page={page}&order[number]={order}"
-    resp = requests.get(api_url, headers=HEADERS, impersonate="chrome124", timeout=30)
+    resp = httpx.get(api_url, headers=JSON_HEADERS, timeout=30, follow_redirects=True)
     if resp.status_code == 200:
         return resp.json()
     return {"error": f"Failed to fetch chapters: {resp.status_code}", "id": hash_id}
@@ -204,9 +204,8 @@ def fetch_chapter_images(manga_slug, chapter_slug):
 def fetch_chapter_images_by_id(hash_id, chapter_id, chapter_number):
     resp = fetch_page(f"/title/{hash_id}", return_resp=True)
     manga_slug = hash_id
-    if "/title/" in resp.url:
-        manga_slug = resp.url.split("/title/")[-1].split("?")[0].split("/")[0]
-
+    if "/title/" in str(resp.url):
+        manga_slug = str(resp.url).split("/title/")[-1].split("?")[0].split("/")[0]
     chapter_slug = f"{chapter_id}-chapter-{chapter_number}"
     return fetch_chapter_images(manga_slug, chapter_slug)
 
@@ -220,10 +219,10 @@ def search_manga(keyword, limit=20, page=1, order="relevance", genres=None):
     api_url = f"{BASE_URL}/api/v2/manga"
     if genres:
         genre_params = "&".join([f"genres[]={g}" for g in genres])
-        api_url += f"?{genre_params}&{urlencode(params)}"
-        resp = requests.get(api_url, headers=HEADERS, impersonate="chrome124", timeout=30)
+        full_url = f"{api_url}?{genre_params}&{urlencode(params)}"
+        resp = httpx.get(full_url, headers=JSON_HEADERS, timeout=30, follow_redirects=True)
     else:
-        resp = requests.get(api_url, params=params, headers=HEADERS, impersonate="chrome124", timeout=30)
+        resp = httpx.get(api_url, params=params, headers=JSON_HEADERS, timeout=30, follow_redirects=True)
     if resp.status_code == 200:
         return resp.json()
     return {"error": f"Failed to search manga: {resp.status_code}", "keyword": keyword}
